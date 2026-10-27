@@ -3,30 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#f6f2ea">
 <title>Time Dashboard</title>
 <style>
 :root{
   color-scheme:light;
-  --page:#f9f9f7;--surface:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--muted:#898781;
+  --page:#f6f2ea;--surface:#fffdf9;--ink:#0b0b0b;--ink2:#52514e;--muted:#898781;
   --grid:#e1e0d9;--axis:#c3c2b7;--border:rgba(11,11,11,.10);
   --cymbi:#2a78d6;--livco:#eb6834;--bokumogu:#1baf7a;--staoba:#eda100;--myself:#e87ba4;--other:#898781;
   --work:#2a78d6;--sleep:#6250d6;--family:#e87ba4;--life:#a7a59c;--health:#1baf7a;--learn:#eda100;--fun:#eb6834;--wb:#008300;
   --good:#0ca30c;--warn:#fab219;--serious:#ec835a;--crit:#d03b3b;--goodtext:#006300;
   --seq1:#cde2fb;--seq2:#9ec5f4;--seq3:#5598e7;--seq4:#256abf;--seq5:#104281;
-}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  color-scheme:dark;--page:#0d0d0d;--surface:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--muted:#898781;
-  --grid:#2c2c2a;--axis:#383835;--border:rgba(255,255,255,.10);
-  --cymbi:#3987e5;--livco:#d95926;--bokumogu:#199e70;--staoba:#c98500;--myself:#d55181;
-  --work:#3987e5;--sleep:#9085e9;--family:#d55181;--life:#6f6e68;--health:#199e70;--learn:#c98500;--fun:#d95926;
-  --goodtext:#0ca30c;--seq1:#184f95;--seq2:#1c5cab;--seq3:#3987e5;--seq4:#86b6ef;--seq5:#cde2fb;
-}}
-:root[data-theme="dark"]{
-  color-scheme:dark;--page:#0d0d0d;--surface:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--muted:#898781;
-  --grid:#2c2c2a;--axis:#383835;--border:rgba(255,255,255,.10);
-  --cymbi:#3987e5;--livco:#d95926;--bokumogu:#199e70;--staoba:#c98500;--myself:#d55181;
-  --work:#3987e5;--sleep:#9085e9;--family:#d55181;--life:#6f6e68;--health:#199e70;--learn:#c98500;--fun:#d95926;
-  --goodtext:#0ca30c;--seq1:#184f95;--seq2:#1c5cab;--seq3:#3987e5;--seq4:#86b6ef;--seq5:#cde2fb;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--page);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif;-webkit-text-size-adjust:100%}
