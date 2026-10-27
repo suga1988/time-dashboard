@@ -2,7 +2,7 @@
 
 Env:
   TOGGL_API_TOKEN  (required)  Toggl Profile settings -> API Token
-  START_DATE       (optional)  first day ever to include, YYYY-MM-DD (default 2026-09-01)
+  START_DATE       (optional)  first day ever to include, YYYY-MM-DD (default 2025-01-01)
   REFETCH_DAYS     (optional)  re-fetch this many recent days each run (default 60)
   OUT              (optional)  output path (default data.json)
 
@@ -18,7 +18,7 @@ from zoneinfo import ZoneInfo
 TOKEN = os.environ.get('TOGGL_API_TOKEN')
 if not TOKEN:
     sys.exit('TOGGL_API_TOKEN is not set')
-START = dt.date.fromisoformat(os.environ.get('START_DATE', '2026-09-01'))
+START = dt.date.fromisoformat(os.environ.get('START_DATE', '2025-01-01'))
 OUT = os.environ.get('OUT', 'data.json')
 REFETCH_DAYS = int(os.environ.get('REFETCH_DAYS', '60'))
 JST = ZoneInfo('Asia/Tokyo')

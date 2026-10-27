@@ -2,7 +2,7 @@ name: Update Toggl data
 
 on:
   schedule:
-    - cron: '0 20 * * *'   # 毎日 05:00 JST（UTC 20:00）。週1にするなら '0 20 * * 0'
+    - cron: '0 0 * * *'    # 毎日 09:00 JST（UTC 00:00）。週1にするなら '0 0 * * 1'（月曜）
   workflow_dispatch:        # Actionsタブから手動実行もできる
 
 permissions:
@@ -19,7 +19,7 @@ jobs:
       - name: Fetch Toggl entries
         env:
           TOGGL_API_TOKEN: ${{ secrets.TOGGL_API_TOKEN }}
-          START_DATE: '2026-09-01'
+          START_DATE: '2025-01-01'
         run: python fetch_toggl.py
       - name: Commit data.json
         run: |

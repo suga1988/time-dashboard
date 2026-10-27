@@ -5,7 +5,7 @@ Toggl Track の記録を毎日自動取得し、GitHub Pages で閲覧するダ�
 - `index.html` … ダッシュボード本体（`data.json` を読んで全てブラウザ内で集計）
 - `data.json` … Toggl から取得したローデータ（Actions が自動更新）
 - `fetch_toggl.py` … Toggl API v9 → `data.json`
-- `.github/workflows/update.yml` … 毎日 05:00 JST に実行
+- `.github/workflows/update.yml` … 毎日 09:00 JST に実行（前夜の睡眠タイマーが止まった後）
 
 ## 初期設定（1回だけ）
 
@@ -24,5 +24,5 @@ Toggl Track の記録を毎日自動取得し、GitHub Pages で閲覧するダ�
 
 - 目標値はダッシュボード上の「目標」ボタンで設定（端末のブラウザに保存）
 - 取得開始日を変えるときは `update.yml` の `START_DATE`
-- 頻度を週1にするときは cron を `'0 20 * * 0'`（月曜 05:00 JST）
+- 頻度を週1にするときは cron を `'0 0 * * 1'`（月曜 09:00 JST）
 - Toggl 側で過去の記録を直しても、毎回全期間を取り直すので反映される
