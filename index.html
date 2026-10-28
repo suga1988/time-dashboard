@@ -381,51 +381,71 @@ function render(){
   document.getElementById('quality').innerHTML=(bad.length?`<table><tr><th>日付</th><th>合計</th><th>24hとの差</th><th>内容</th></tr>`+bad.map(t=>{const diff=t.h-24;const prv=t.day===prov;return `<tr><td>${fmtD(t.date)}(${wd(t.date)})</td><td>${t.h.toFixed(1)}h</td><td class="${diff<0?'down':'up'}">${diff>0?'+':''}${diff.toFixed(1)}h</td><td style="text-align:left;white-space:normal">${prv?'暫定（翌朝まで未収録）':diff<0?'記録漏れの可能性':'時間帯の重なり・重複の可能性'}</td></tr>`;}).join('')+'</table>':'<div class="note">22〜26h の範囲外の日はありません</div>')+
     `<div class="note">タグなしWork：${untagged.toFixed(1)}h ／ 開始時刻が直前レコードの終了より前（重なり）：${overlaps}件 ／ 判定：22h未満・26h超を警告、最終日は暫定</div>`;
 
+  // ---------- unified judgement: target if set, otherwise 30-day average ----------
+  // dir 'cap' = staying under is good (Work, Cymbi, businesses, 連絡+MTG); 'floor' = reaching it is good (睡眠, 開拓比率, Health...)
+  // vs target: any miss = warn, miss >= 20% = crit.  vs 30-day avg: miss >= 20% = warn, >= 35% = crit (the average itself is noisy).
+  const judge=(cur,tg,avg,dir)=>{ const useT=tg!=null&&tg>0; const ref=useT?tg:avg; if(!(ref>0))return {lvl:'na',ref:null,src:'基準なし',p:0,diff:0};
+    const p=(cur-ref)/ref*100, diff=cur-ref; const bad=dir==='cap'?diff>0:diff<0; const mag=Math.abs(p);
+    const lvl=!bad?'ok':useT?(mag>=20?'crit':'warn'):(mag>=35?'crit':mag>=20?'warn':'ok'); return {lvl,ref,src:useT?'目標':'30日平均',p,diff,useT}; };
+  const f30=(()=>{const f=addDays(to,-29);return f<firstDay?firstDay:f;})();
+  const commPred=s=>isWork(s)&&(s.d==='チャット・連絡 etc'||s.d==='MTG');
+  const comm30=(()=>{const w=hours(f30,to,isWork);return w>0?hours(f30,to,commPred)/w*100:null;})();
+  const wTot=hours(from,to,isWork), cTot=cyTot, sTot=hours(from,to,isSleep);
+  const sgn=v=>{const r=Math.abs(v)<0.05?0:v;return (r>=0?'+':'')+r.toFixed(1);};
+  const M=[];
+  const addM=(o)=>{o.j=judge(o.cur,o.tg,o.avg,o.dir);M.push(o);};
+  addM({key:'work',name:'Work',unit:'h/日',cur:wTot/nDays,tg:targets.work?targets.work/7:null,avg:avg30(to,isWork),dir:'cap'});
+  addM({key:'cymbi',name:'Cymbi',unit:'h/日',cur:cTot/nDays,tg:targets.cymbi?targets.cymbi/7:null,avg:avg30(to,isCy),dir:'cap'});
+  addM({key:'sleep',name:'睡眠',unit:'h/日',cur:sTot/nDays,tg:targets.sleep??null,avg:avg30(to,isSleep),dir:'floor'});
+  if(kr!=null)addM({key:'kaitaku',name:'🚀開拓比率',unit:'%',cur:kaitaku/cyTot*100,tg:kTgt,avg:null,dir:'floor'});
+  for(const [name] of BIZ){ if(name==='Cymbi'||name==='その他')continue; const pr=s=>s.biz===name; const h=hours(from,to,pr); const tg=bizTgtFor(name,from,to);
+    if(h<=0&&!(tg>0))continue; addM({key:'biz',name,unit:'h',cur:h,tg,avg:avg30(to,pr)*nDays,dir:'cap'}); }
+  if(cr!=null)addM({key:'comm',name:'連絡＋MTG比率',unit:'%',cur:comm/workTot*100,tg:null,avg:comm30,dir:'cap'});
+  for(const [pj,label] of [['05_Health','Health'],['06_Learn','Learn'],['04_Family','Family']]){const pred=s=>s.p===pj;addM({key:'life',name:label,unit:'h/日',cur:hours(from,to,pred)/nDays,tg:null,avg:avg30(to,pred),dir:'floor'});}
+  const fmtU=(v,u)=>u==='%'?`${Math.round(v)}%`:`${v.toFixed(1)}${u}`;
+
   // alerts
   const al=[]; const push=(lvl,t,m)=>al.push({lvl,t,m});
-  const chk=(name,cur,base,tg,invert)=>{ // invert: lower is bad
-    const ref=tg??base; if(!(ref>0)){push('ok',name,'基準なし');return;}
-    const p=(cur-ref)/ref*100; const badDir=invert?p<0:p>0; const mag=Math.abs(p);
-    const lvl=!badDir?'ok':mag>=35?'crit':mag>=20?'warn':'ok';
-    push(lvl,`${name} ${p>0?'+':''}${Math.round(p)}%`,`${cur.toFixed(1)} vs ${tg?'目標':'30日平均'} ${ref.toFixed(1)}`); };
-  const wPer=hours(from,to,isWork)/nDays, cPer=hours(from,to,isCy)/nDays, sPer=hours(from,to,isSleep)/nDays;
-  chk('Work／日',wPer,avg30(to,isWork),targets.work?targets.work/7:null,false);
-  chk('Cymbi／日',cPer,avg30(to,isCy),targets.cymbi?targets.cymbi/7:null,false);
-  chk('睡眠／日',sPer,avg30(to,isSleep),targets.sleep??null,true);
-  if(kr!=null){const gap=kTgt-kr;push(gap<=0?'ok':gap>=15?'crit':'warn',`🚀開拓比率 ${kr}%（目標 ${kTgt}%）`,gap<=0?'目標達成':`目標まで ${gap}pt ／ 開拓をあと ${Math.max(0,(kTgt/100*cyTot-kaitaku)/(1-kTgt/100)).toFixed(1)}h 積むか、共通を減らす`);}
-  if(cr!=null)push(cr>=50?'crit':cr>=40?'warn':'ok',`連絡＋MTG比率 ${cr}%`,'閾値：40%以上で注意、50%以上で警告');
-  const sleepDays=perDay(from,to,isSleep);let streak=0,maxStreak=0;for(const d of sleepDays){if(d.day===prov)break;streak=d.h<6?streak+1:0;maxStreak=Math.max(maxStreak,streak);}
-  push(maxStreak>=3?'crit':maxStreak>=2?'warn':'ok',`睡眠6h未満 連続${maxStreak}日`,'3日連続で警告');
+  for(const m of M){ const j=m.j; if(j.lvl==='na'){push('ok',m.name,'基準なし');continue;}
+    const word=!j.useT?(j.diff>=0?'増':'減'):m.dir==='cap'?(j.diff>0?'超過':'以内'):(j.diff<0?'不足':'達成');
+    const dTxt=m.unit==='%'?`${j.diff>=0?'+':''}${Math.round(j.diff)}pt`:`${sgn(j.diff)}${m.unit}`+(m.unit==='h/日'?`（期間 ${sgn(j.diff*nDays)}h）`:'');
+    push(j.lvl,`${m.name} ${fmtU(m.cur,m.unit)}（${j.src} ${fmtU(j.ref,m.unit)}）`,`${dTxt} ${word}・${j.p>0?'+':''}${Math.round(j.p)}%`); }
+  // sleep streak uses the same reference as the sleep metric
+  const sleepRef=M.find(m=>m.key==='sleep').j; const sRef=sleepRef.ref;
+  const sleepDays=perDay(from,to,isSleep);let streak=0,maxStreak=0;
+  if(sRef>0)for(const d of sleepDays){if(d.day===prov)break;streak=d.h<sRef?streak+1:0;maxStreak=Math.max(maxStreak,streak);}
+  if(sRef>0)push(maxStreak>=3?'crit':maxStreak>=2?'warn':'ok',`睡眠${sRef.toFixed(1)}h未満 連続${maxStreak}日`,`基準：${sleepRef.src}。2日連続で注意、3日で警告`);
   const mangaWd=segs.filter(s=>inRange(s,from,to)&&s.p==='07_Fun'&&s.d==='マンガ'&&[1,2,3,4].includes((s.date.getDay()+6)%7));
   push(mangaWd.length?'warn':'ok',`マンガ 火〜金 ${sum(mangaWd.map(s=>s.h)).toFixed(1)}h`,'ルール：マンガは月・休日のみ'+(mangaWd.length?'（'+[...new Set(mangaWd.map(s=>fmtD(s.date)))].join(', ')+'）':''));
-  for(const [p,label] of [['05_Health','Health'],['06_Learn','Learn'],['04_Family','Family']]){const pred=s=>s.p===p;chk(label+'／日',hours(from,to,pred)/nDays,avg30(to,pred),null,true);}
   const order={crit:0,warn:1,ok:2};al.sort((a,b)=>order[a.lvl]-order[b.lvl]);
   const shown=onlyBad?al.filter(a=>a.lvl!=='ok'):al;
   document.getElementById('alerts').innerHTML=shown.length?shown.map(a=>`<div class="al ${a.lvl}"><div class="ic">${a.lvl==='crit'?'●':a.lvl==='warn'?'▲':'✓'}</div><div><div class="t">${a.t}</div><div class="m">${a.m}</div></div></div>`).join(''):'<div class="note">要確認のアラートはありません</div>';
   const nb=al.filter(a=>a.lvl!=='ok').length;document.getElementById('alertMeta').textContent=nb?`${nb}件要確認`:'問題なし';
 
-  // ---------- insights (rule-based commentary) ----------
+  // ---------- insights: same metrics, same references, same levels as the alerts ----------
   const ins=[]; const say=(lvl,html)=>ins.push({lvl,html});
-  const wTot=hours(from,to,isWork), cTot=cyTot, sTot=hours(from,to,isSleep);
-  const w30=avg30(to,isWork), c30=avg30(to,isCy), s30=avg30(to,isSleep);
-  // targets: be blunt
-  if(targets.work){const tgW=targets.work/7*nDays;const g=wTot-tgW;say(g<=0?'good':'crit',`<b>Work 上限${targets.work}h/週</b>に対し${wTot.toFixed(1)}h（${g>=0?'+':''}${g.toFixed(1)}h）。${g<=0?'上限内に収まっている。':`<b>上限を${g.toFixed(1)}h超過</b>（1日あたり+${(g/nDays).toFixed(1)}h）。超過分は睡眠・家族から来ていないか生活バランスで確認。何を手放すか決めない限り、来週も同じだけ超える。`}`);}
-  if(targets.cymbi){const tg=targets.cymbi/7*nDays;const g=cTot-tg;say(g<=0?'good':'crit',`<b>Cymbi 上限${targets.cymbi}h/週</b>に対し${cTot.toFixed(1)}h（${g>=0?'+':''}${g.toFixed(1)}h）。${g<=0?'上限内に収まっている。':`<b>上限を${g.toFixed(1)}h超過</b>。Workの${pct(cTot,wTot)}%をCymbiが占めている。超過の中身が共通（連絡・ツール整備）なら、開拓比率と合わせて削る対象を決めること。`}`);}
-  if(targets.sleep){const g=sTot/nDays-targets.sleep;say(g>=0?'good':'crit',`<b>睡眠 目標${targets.sleep}h/日</b>に対し平均${(sTot/nDays).toFixed(1)}h（${g>=0?'+':''}${g.toFixed(1)}h/日）。${g>=0?'確保できている。':'削っている。睡眠を削って作った時間がどこに行ったか、Workの連絡・MTG比率と娯楽を見て答えを出すこと。'}`);}
-  // kaitaku
-  if(kr!=null){say(kr>=kTgt?'good':kTgt-kr>=15?'crit':'warn',`<b>🚀開拓比率 ${kr}%</b>（目標${kTgt}%）。${kr>=kTgt?'目標ライン上。維持できているかは8週推移で確認。':`Cymbi ${cTot.toFixed(1)}hのうち開拓は${kaitaku.toFixed(1)}h、共通が${(subs['共通']||0).toFixed(1)}h（${pct(subs['共通']||0,cTot)}%）。<b>共通に逃げている時間が開拓を食っている</b>。共通の中身（連絡・ツール整備・発信）のどれを止めるか決めない限り比率は動かない。`}`);}
-  // communication share
-  if(cr!=null&&cr>=40)say(cr>=50?'crit':'warn',`<b>連絡＋MTG比率 ${cr}%</b>（${comm.toFixed(1)}h）。Workの${cr>=50?'半分以上':'4割'}が受け身の時間。成果物・提案・商談に充てた時間は${((descs['提案・資料・成果物 作成']||0)+(descs['商談・渉外活動']||0)).toFixed(1)}hしかない。`);
-  // sleep streak / data
-  if(maxStreak>=2)say(maxStreak>=3?'crit':'warn',`<b>睡眠6h未満が${maxStreak}日連続</b>。平均${(sTot/nDays).toFixed(1)}h/日（30日平均${s30.toFixed(1)}h）。体脂肪率も判断力もここから崩れる。`);
+  const lv=l=>l==='crit'?'crit':l==='warn'?'warn':'good';
+  const refTxt=(m)=>`${m.j.src}${fmtU(m.j.ref,m.unit)}`;
+  const kyotsu=subs['共通']||0;
+  const goodList=[];
+  for(const m of M){ const j=m.j; if(j.lvl==='na')continue;
+    if(j.lvl==='ok'){ if(j.useT)goodList.push(`${m.name} ${fmtU(m.cur,m.unit)}（${refTxt(m)}）`); continue; }
+    const head=`<b>${m.name} ${fmtU(m.cur,m.unit)}</b>（${refTxt(m)}、${j.p>0?'+':''}${Math.round(j.p)}%）。`;
+    if(m.key==='work')say(lv(j.lvl),head+`期間で<b>${sgn(j.diff*nDays)}h超過</b>。超過分は睡眠・家族から来ていないか生活バランスで確認。何を手放すか決めない限り、来週も同じだけ超える。`);
+    else if(m.key==='cymbi')say(lv(j.lvl),head+`期間で<b>${sgn(j.diff*nDays)}h超過</b>。Workの${pct(cTot,wTot)}%をCymbiが占め、うち共通が${kyotsu.toFixed(1)}h（${pct(kyotsu,cTot)}%）。超過の中身が共通なら、それが削る対象。`);
+    else if(m.key==='sleep')say(lv(j.lvl),head+`1日${Math.abs(j.diff).toFixed(1)}h、期間で${Math.abs(j.diff*nDays).toFixed(1)}h削っている。削って作った時間がどこに行ったか、Workの連絡・MTGと娯楽を見て答えを出すこと。`);
+    else if(m.key==='kaitaku')say(lv(j.lvl),head+`Cymbi ${cTot.toFixed(1)}hのうち開拓${kaitaku.toFixed(1)}h、共通${kyotsu.toFixed(1)}h（${pct(kyotsu,cTot)}%）。<b>共通に逃げている時間が開拓を食っている</b>。目標に届くには開拓をあと${Math.max(0,(kTgt/100*cTot-kaitaku)/(1-kTgt/100)).toFixed(1)}h積むか、共通を同じだけ減らす。`);
+    else if(m.key==='biz')say(lv(j.lvl),head+`<b>${sgn(j.diff)}h</b>。想定以上の時間がこの事業に流れている。単価に見合っているか、関わる範囲を絞れないかを判断すること。`);
+    else if(m.key==='comm')say(lv(j.lvl),head+`Workの${Math.round(m.cur)}%が連絡・MTGの受け身の時間。成果物・提案・商談に充てたのは${((descs['提案・資料・成果物 作成']||0)+(descs['商談・渉外活動']||0)).toFixed(1)}hだけ。`);
+    else if(m.key==='life')say(lv(j.lvl),head+`Workが増えたときに最初に削られているのはここ。`);
+  }
+  if(maxStreak>=2)say(maxStreak>=3?'crit':'warn',`<b>睡眠${sRef.toFixed(1)}h未満が${maxStreak}日連続</b>（基準：${sleepRef.src}）。体脂肪率も判断力もここから崩れる。`);
   if(mangaWd.length)say('warn',`<b>マンガを平日に${sum(mangaWd.map(s=>s.h)).toFixed(1)}h</b>（${[...new Set(mangaWd.map(s=>fmtD(s.date)))].join(', ')}）。自分で決めたルール「月・休日のみ」を破っている。`);
-  if(bad.filter(t=>t.day!==prov&&t.h<22).length)say('warn',`記録漏れの可能性が${bad.filter(t=>t.day!==prov&&t.h<22).length}日。数字の信頼性が落ちるので、このダッシュボードの判断材料として使う前に埋めること。`);
-  // positives / neutral comparisons
-  const lifeChk=[['Health','05_Health'],['Learn','06_Learn'],['Family','04_Family']].map(([n,p])=>{const pred=s=>s.p===p;return [n,hours(from,to,pred)/nDays,avg30(to,pred)];});
-  const dropped=lifeChk.filter(([n,c,b])=>b>0&&(c-b)/b<=-0.3), rose=lifeChk.filter(([n,c,b])=>b>0&&(c-b)/b>=0.3);
-  if(dropped.length)say('warn',`${dropped.map(([n,c,b])=>`<b>${n}</b> ${c.toFixed(1)}h/日（30日平均${b.toFixed(1)}）`).join('、')}が3割以上減。Workが増えたときに最初に削られているのはここ。`);
-  if(rose.length)say('good',`${rose.map(([n,c,b])=>`<b>${n}</b> ${c.toFixed(1)}h/日（30日平均${b.toFixed(1)}）`).join('、')}は増加。`);
-  if(!targets.work&&!targets.cymbi&&!targets.sleep)say('warn','目標が未設定。30日平均との比較しかできないので「前と同じ」が合格になってしまう。Work／Cymbi／睡眠のタイルから目標を入れること。');
+  const gaps=bad.filter(t=>t.day!==prov&&t.h<22).length;
+  if(gaps)say('warn',`記録漏れの可能性が${gaps}日。数字の信頼性が落ちるので、判断材料にする前に埋めること。`);
+  if(goodList.length)say('good',`目標クリア：${goodList.join('、')}。`);
+  const unset=[['work','Work'],['cymbi','Cymbi'],['sleep','睡眠']].filter(([k])=>!targets[k]).map(([,n])=>n);
+  if(unset.length)say('warn',`${unset.join('／')}は目標未設定のため30日平均で判定中。平均比では「前と同じ」が合格になる。タイルから目標を入れること。`);
   if(!ins.length)say('good','目標・ルールに対する逸脱なし。');
   const io={crit:0,warn:1,good:2};ins.sort((a,b)=>io[a.lvl]-io[b.lvl]);
   document.getElementById('insights').innerHTML=ins.map(i=>`<div class="ins ${i.lvl}">${i.html}</div>`).join('');
