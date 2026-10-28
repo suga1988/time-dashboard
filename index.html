@@ -298,12 +298,12 @@ function render(){
   const isWork=s=>s.p==='01_Work', isCy=s=>s.biz==='Cymbi', isSleep=s=>s.p==='08_Sleep';
 
   // KPIs
-  const kp=[{k:'work',label:'Work 総時間',pred:isWork,color:'--work',unit:'h/週'},{k:'cymbi',label:'Cymbi 総時間',pred:isCy,color:'--cymbi',unit:'h/週'},{k:'sleep',label:'睡眠',pred:isSleep,color:'--sleep',unit:'h/日'}];
+  const kp=[{k:'work',label:'Work 総時間',pred:isWork,color:'--work',unit:'h/週',lb:true},{k:'cymbi',label:'Cymbi 総時間',pred:isCy,color:'--cymbi',unit:'h/週',lb:true},{k:'sleep',label:'睡眠',pred:isSleep,color:'--sleep',unit:'h/日',lb:false}];
   document.getElementById('kpis').innerHTML=kp.map(k=>{const tot=hours(from,to,k.pred);const dl=perDay(from,to,k.pred);const b=avg30(to,k.pred);const tg=targets[k.k];
     const tgDay=tg?(k.unit==='h/日'?tg:tg/7):null; const perd=tot/nDays;
     return `<div class="kpi"><div class="lbl"><span>${k.label}</span><button class="tgt" onclick="__setTarget('${k.k}','${k.label}','${k.unit}')">${tg?`目標 ${tg}${k.unit}`:'目標を設定'}</button></div>
       <div class="val">${fmtH(tot)}<small>h</small> <small>／ ${perd.toFixed(1)}h/日</small></div>
-      <div class="cmp"><span>対30日平均 ${delta(perd,b)}</span>${tgDay?`<span>対目標 ${delta(perd,tgDay)}</span>`:''}</div>
+      <div class="cmp"><span>対30日平均 ${delta(perd,b,k.lb)}</span>${tgDay?`<span>対目標 ${delta(perd,tgDay,k.lb)}</span>`:''}</div>
       ${dailyBars(dl,k.color,b,tgDay,'h')}</div>`;}).join('');
 
   // business weekly (tabbed, one business at a time)
@@ -326,12 +326,12 @@ function render(){
   window.__setBizTarget=(name)=>{ if(name==='Cymbi'){setTarget('cymbi','Cymbi 総時間','h/週');return;} const k='biz:'+name; const cur=bizTgtMonthly(name);
     const v=prompt(`${name} の月目標（h/月）。空欄で初期値${BIZ_TGT_DEFAULT[name]??'なし'}に戻す`,cur??''); if(v===null)return;
     if(v.trim()==='')delete targets[k]; else if(!isNaN(+v))targets[k]=+v; try{localStorage.setItem(TK,JSON.stringify(targets))}catch(e){} render(); };
-  const tgtCell=(h,tg)=>{ if(!(tg>0))return '<span class="flat">未設定</span>'; const p=Math.round(h/tg*100); const diff=h-tg;
-    return `<span class="${diff>=0?'up':'down'}">${p}%</span><br><small class="${diff>=0?'up':'down'}">${diff>=0?'+':''}${diff.toFixed(1)}h</small>`; };
+  const tgtCell=(h,tg)=>{ if(!(tg>0))return '<span class="flat">未設定</span>'; const p=Math.round(h/tg*100); const diff=h-tg; const c=diff<=0?'up':'down'; // business hours are caps: staying under is good
+    return `<span class="${c}">${p}%</span><br><small class="${c}">${diff>=0?'+':''}${diff.toFixed(1)}h</small>`; };
   document.getElementById('bizTable').innerHTML=`<table><tr><th>事業</th><th>時間</th><th>Work比</th><th>目標</th><th>対目標</th><th>対30日</th></tr>`+
     BIZ.map(([name,color])=>{const pr=s=>s.biz===name;const h=hours(from,to,pr);const tg=bizTgtFor(name,from,to);if(h<=0&&!(tg>0))return '';const b=avg30(to,pr)*nDays;
       const tgLabel=name==='Cymbi'?(targets.cymbi?`${targets.cymbi}h/週`:'設定'):(bizTgtMonthly(name)!=null?`${bizTgtMonthly(name)}h/月`:'設定');
-      return `<tr><td><i class="sw" style="background:var(${color})"></i>${name}</td><td>${h.toFixed(1)}h</td><td>${pct(h,workTot)??0}%</td><td><button class="tgt" onclick="__setBizTarget('${name}')">${tgLabel}</button>${tg>0?`<br><small class="flat">→${tg.toFixed(1)}h</small>`:''}</td><td>${tgtCell(h,tg)}</td><td>${delta(h,b)}</td></tr>`;}).join('')+`</table><div class="note">目標の「→」は選択期間に換算した目標時間。対目標 ＝ 実績 ÷ 期間換算の目標（月目標をその月の日数で日割りして合算。Cymbiは週目標を7で日割り）。目標ボタンで変更可（この端末に保存）</div>`;
+      return `<tr><td><i class="sw" style="background:var(${color})"></i>${name}</td><td>${h.toFixed(1)}h</td><td>${pct(h,workTot)??0}%</td><td><button class="tgt" onclick="__setBizTarget('${name}')">${tgLabel}</button>${tg>0?`<br><small class="flat">→${tg.toFixed(1)}h</small>`:''}</td><td>${tgtCell(h,tg)}</td><td>${delta(h,b,true)}</td></tr>`;}).join('')+`</table><div class="note">目標の「→」は選択期間に換算した目標時間。対目標 ＝ 実績 ÷ 期間換算の目標（月目標をその月の日数で日割りして合算。Cymbiは週目標を7で日割り）。目標ボタンで変更可（この端末に保存）</div>`;
 
   // Cymbi breakdown
   const cyTot=hours(from,to,isCy); const subs={};
@@ -360,7 +360,7 @@ function render(){
   const allTot=hours(from,to); const all30=avg30(to);
   const lifeAll=[['01_Work',null,'Work']].concat(lifeRows);
   document.getElementById('lifeTable').innerHTML=`<table><tr><th>項目</th><th>合計</th><th>比率</th><th>／日</th><th>30日/日</th><th>30日比率</th><th>差</th><th>前年比</th></tr>`+lifeAll.map(([p,d,label])=>{const pred=s=>s.p===p&&(!d||s.d===d);const h=hours(from,to,pred);const b=avg30(to,pred);
-    return `<tr><td><i class="sw" style="background:var(${PROJ[p][1]})"></i>${label}</td><td>${h.toFixed(1)}h</td><td>${pct(h,allTot)}%</td><td>${(h/nDays).toFixed(1)}</td><td>${b.toFixed(1)}</td><td>${pct(b,all30)}%</td><td>${delta(h/nDays,b,!!d)}</td><td>${yok?delta(h,hours(yf,yt,pred),!!d):'<span class="flat">—</span>'}</td></tr>`;}).join('')+`</table><div class="note">マンガ・SNSは増加を赤で表示。比率 ＝ 記録時間全体（${allTot.toFixed(0)}h）に占める割合。「差」は／日の対30日平均。表は横スクロール可</div>`;
+    return `<tr><td><i class="sw" style="background:var(${PROJ[p][1]})"></i>${label}</td><td>${h.toFixed(1)}h</td><td>${pct(h,allTot)}%</td><td>${(h/nDays).toFixed(1)}</td><td>${b.toFixed(1)}</td><td>${pct(b,all30)}%</td><td>${delta(h/nDays,b,!!d||p==='01_Work')}</td><td>${yok?delta(h,hours(yf,yt,pred),!!d||p==='01_Work'):'<span class="flat">—</span>'}</td></tr>`;}).join('')+`</table><div class="note">Work・マンガ・SNSは増加を赤で表示。比率 ＝ 記録時間全体（${allTot.toFixed(0)}h）に占める割合。「差」は／日の対30日平均。表は横スクロール可</div>`;
 
   // monthly YoY
   const MET=[['Work','--work',isWork,'h'],['Cymbi','--cymbi',isCy,'h'],['睡眠','--sleep',isSleep,'h'],['Family','--family',s=>s.p==='04_Family','h'],['Health','--health',s=>s.p==='05_Health','h'],['🚀開拓比率','--cymbi',null,'%']];
@@ -390,7 +390,7 @@ function render(){
     push(lvl,`${name} ${p>0?'+':''}${Math.round(p)}%`,`${cur.toFixed(1)} vs ${tg?'目標':'30日平均'} ${ref.toFixed(1)}`); };
   const wPer=hours(from,to,isWork)/nDays, cPer=hours(from,to,isCy)/nDays, sPer=hours(from,to,isSleep)/nDays;
   chk('Work／日',wPer,avg30(to,isWork),targets.work?targets.work/7:null,false);
-  chk('Cymbi／日',cPer,avg30(to,isCy),targets.cymbi?targets.cymbi/7:null,true);
+  chk('Cymbi／日',cPer,avg30(to,isCy),targets.cymbi?targets.cymbi/7:null,false);
   chk('睡眠／日',sPer,avg30(to,isSleep),targets.sleep??null,true);
   if(kr!=null){const gap=kTgt-kr;push(gap<=0?'ok':gap>=15?'crit':'warn',`🚀開拓比率 ${kr}%（目標 ${kTgt}%）`,gap<=0?'目標達成':`目標まで ${gap}pt ／ 開拓をあと ${Math.max(0,(kTgt/100*cyTot-kaitaku)/(1-kTgt/100)).toFixed(1)}h 積むか、共通を減らす`);}
   if(cr!=null)push(cr>=50?'crit':cr>=40?'warn':'ok',`連絡＋MTG比率 ${cr}%`,'閾値：40%以上で注意、50%以上で警告');
@@ -409,8 +409,8 @@ function render(){
   const wTot=hours(from,to,isWork), cTot=cyTot, sTot=hours(from,to,isSleep);
   const w30=avg30(to,isWork), c30=avg30(to,isCy), s30=avg30(to,isSleep);
   // targets: be blunt
-  if(targets.work){const tgW=targets.work/7*nDays;const g=wTot-tgW;say(g>=0?'good':'crit',`<b>Work 目標${targets.work}h/週</b>に対し${wTot.toFixed(1)}h（${g>=0?'+':''}${g.toFixed(1)}h）。${g>=0?'達成。超過分が睡眠・家族を削っていないか下の生活バランスで確認。':`未達。1日あたり${(-g/nDays).toFixed(1)}h足りない。「時間がない」ではなく、どの枠を削ってWorkに回すかを決めていないのが原因。`}`);}
-  if(targets.cymbi){const tg=targets.cymbi/7*nDays;const g=cTot-tg;say(g>=0?'good':'crit',`<b>Cymbi 目標${targets.cymbi}h/週</b>に対し${cTot.toFixed(1)}h（${g>=0?'+':''}${g.toFixed(1)}h）。${g>=0?'達成。':`未達。Work全体に占めるCymbiは${pct(cTot,wTot)}%。他事業に流れているのか、Work自体が足りないのかを事業別タブで切り分けること。`}`);}
+  if(targets.work){const tgW=targets.work/7*nDays;const g=wTot-tgW;say(g<=0?'good':'crit',`<b>Work 上限${targets.work}h/週</b>に対し${wTot.toFixed(1)}h（${g>=0?'+':''}${g.toFixed(1)}h）。${g<=0?'上限内に収まっている。':`<b>上限を${g.toFixed(1)}h超過</b>（1日あたり+${(g/nDays).toFixed(1)}h）。超過分は睡眠・家族から来ていないか生活バランスで確認。何を手放すか決めない限り、来週も同じだけ超える。`}`);}
+  if(targets.cymbi){const tg=targets.cymbi/7*nDays;const g=cTot-tg;say(g<=0?'good':'crit',`<b>Cymbi 上限${targets.cymbi}h/週</b>に対し${cTot.toFixed(1)}h（${g>=0?'+':''}${g.toFixed(1)}h）。${g<=0?'上限内に収まっている。':`<b>上限を${g.toFixed(1)}h超過</b>。Workの${pct(cTot,wTot)}%をCymbiが占めている。超過の中身が共通（連絡・ツール整備）なら、開拓比率と合わせて削る対象を決めること。`}`);}
   if(targets.sleep){const g=sTot/nDays-targets.sleep;say(g>=0?'good':'crit',`<b>睡眠 目標${targets.sleep}h/日</b>に対し平均${(sTot/nDays).toFixed(1)}h（${g>=0?'+':''}${g.toFixed(1)}h/日）。${g>=0?'確保できている。':'削っている。睡眠を削って作った時間がどこに行ったか、Workの連絡・MTG比率と娯楽を見て答えを出すこと。'}`);}
   // kaitaku
   if(kr!=null){say(kr>=kTgt?'good':kTgt-kr>=15?'crit':'warn',`<b>🚀開拓比率 ${kr}%</b>（目標${kTgt}%）。${kr>=kTgt?'目標ライン上。維持できているかは8週推移で確認。':`Cymbi ${cTot.toFixed(1)}hのうち開拓は${kaitaku.toFixed(1)}h、共通が${(subs['共通']||0).toFixed(1)}h（${pct(subs['共通']||0,cTot)}%）。<b>共通に逃げている時間が開拓を食っている</b>。共通の中身（連絡・ツール整備・発信）のどれを止めるか決めない限り比率は動かない。`}`);}
