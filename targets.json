@@ -1,0 +1,12 @@
+{
+  "work_hours_per_week": null,
+  "cymbi_hours_per_week": null,
+  "sleep_hours_per_day": 6.5,
+  "kaitaku_percent": 50,
+  "business_hours_per_month": {
+    "LivCo": 20,
+    "ボクもぐ": 10,
+    "スタオバ": 10,
+    "Myself": null
+  }
+}
