@@ -199,14 +199,21 @@ const weeks8=(()=>{const a=[];for(let i=7;i>=0;i--){const m=addDays(thisMon,-7*i
 const TARGETS_EDIT_URL='https://github.com/suga1988/time-dashboard/edit/main/targets.json';
 let targets={};
 try{ const r=await fetch('./targets.json',{cache:'no-store'}); if(r.ok){ const t=await r.json(); const num=v=>(typeof v==='number'&&v>0)?v:null;
-  if(num(t.work_hours_per_week))targets.work=t.work_hours_per_week;
-  if(num(t.cymbi_hours_per_week))targets.cymbi=t.cymbi_hours_per_week;
+  // Work / Cymbi: hours per weekday and per weekend day (0 is a valid weekend value)
+  const nz=v=>(typeof v==='number'&&v>=0)?v:null;
+  for(const k of ['work','cymbi']){ const wd=nz(t[k+'_hours_weekday']), we=nz(t[k+'_hours_weekend']);
+    if(wd!=null||we!=null){ targets[k+'Day']=[wd??0,we??0]; targets[k]=(wd??0)*5+(we??0)*2; }
+    else if(num(t[k+'_hours_per_week'])){ targets[k]=t[k+'_hours_per_week']; targets[k+'Day']=[targets[k]/7,targets[k]/7]; } }
   if(num(t.sleep_hours_per_day))targets.sleep=t.sleep_hours_per_day;
   if(num(t.kaitaku_percent))targets.kaitaku=t.kaitaku_percent;
   for(const [k,v] of Object.entries(t.business_hours_per_month||{}))if(num(v))targets['biz:'+k]=v; } }catch(e){}
 try{localStorage.removeItem('tt_targets')}catch(e){} // old per-device targets are no longer used
 function setTarget(){ if(confirm('目標は全端末共通のファイル（targets.json）で管理しています。\nGitHubの編集画面を開きますか？\n（数字を書き換えて「Commit changes」→ 1〜2分で全端末に反映）'))window.open(TARGETS_EDIT_URL,'_blank'); }
 window.__setTarget=setTarget;
+// period target for Work / Cymbi = sum of each day's weekday/weekend hours
+const isWeekend=d=>d.getDay()===0||d.getDay()===6;
+const dayTgt=(k,d)=>targets[k+'Day']?targets[k+'Day'][isWeekend(d)?1:0]:null;
+const periodTgt=(k,f,t)=>{ if(!targets[k+'Day'])return null; let s=0; for(let d=new Date(f);d<=t;d=addDays(d,1))s+=dayTgt(k,d); return s; };
 
 // ---------- svg builders ----------
 const tip=document.getElementById('tip');
@@ -216,7 +223,8 @@ document.addEventListener('pointerout',e=>{if(e.target.closest('[data-tip]'))tip
 
 function dailyBars(list,color,baseline,target,unitLabel){ // list:[{date,h}]
   const W=320,H=96,L=4,R=30,T=10,B=18,n=list.length,pw=W-L-R,ph=H-T-B;
-  const mx=Math.max(1,...list.map(x=>x.h),baseline||0,target||0)*1.1;
+  const tArr=Array.isArray(target)?target:null; if(tArr)target=null;
+  const mx=Math.max(1,...list.map(x=>x.h),baseline||0,target||0,...(tArr||[0]))*1.1;
   const y=v=>T+ph-(v/mx)*ph; const bw=Math.max(2,(pw/n)-2);
   let s=`<svg viewBox="0 0 ${W} ${H}" role="img">`;
   s+=`<line class="ax" x1="${L}" x2="${W-R}" y1="${y(0)}" y2="${y(0)}"/>`;
@@ -229,6 +237,7 @@ function dailyBars(list,color,baseline,target,unitLabel){ // list:[{date,h}]
   if(yb!=null&&yt!=null&&Math.abs(yb-yt)<11){const mid=(yb+yt)/2;if(yb<yt){yb=mid-5.5;yt=mid+5.5;}else{yt=mid-5.5;yb=mid+5.5;}}
   if(baseline>0)s+=`<line x1="${L}" x2="${W-R}" y1="${y(baseline)}" y2="${y(baseline)}" stroke="var(--ink2)" stroke-width="1.5" stroke-dasharray="4 3"/><text class="tick" x="${W-R+4}" y="${yb+3.5}" data-tip="30日平均 ${baseline.toFixed(1)}${unitLabel}/日">${baseline.toFixed(1)}</text>`;
   if(target>0)s+=`<line x1="${L}" x2="${W-R}" y1="${y(target)}" y2="${y(target)}" stroke="var(--good)" stroke-width="1.5"/><text class="tick" x="${W-R+4}" y="${yt+3.5}" style="fill:var(--goodtext)" data-tip="目標 ${target}${unitLabel}/日">${target.toFixed(1)}</text>`;
+  if(tArr)list.forEach((d,i)=>{const x=L+i*(pw/n)+1;const v=tArr[i];if(v==null)return;s+=`<line x1="${x-1}" x2="${x+bw+1}" y1="${y(v)}" y2="${y(v)}" stroke="var(--good)" stroke-width="2.5" stroke-linecap="round" data-tip="${fmtD(d.date)}(${wd(d.date)}) 目標 ${v}h"/>`;});
   // value labels last so their halo cuts the lines behind them
   list.forEach((d,i)=>{const x=L+i*(pw/n)+1;if(d.h>0&&n<=7)s+=`<text class="tick halo" x="${x+bw/2}" y="${y(d.h)-3}" text-anchor="middle" style="fill:var(--ink2)">${d.h.toFixed(1)}</text>`;});
   return s+'</svg>'; }
@@ -307,13 +316,15 @@ function render(){
   const isWork=s=>s.p==='01_Work', isCy=s=>s.biz==='Cymbi', isSleep=s=>s.p==='08_Sleep';
 
   // KPIs
-  const kp=[{k:'work',label:'Work 総時間',pred:isWork,color:'--work',unit:'h/週',lb:true},{k:'cymbi',label:'Cymbi 総時間',pred:isCy,color:'--cymbi',unit:'h/週',lb:true},{k:'sleep',label:'睡眠',pred:isSleep,color:'--sleep',unit:'h/日',lb:false}];
+  const kp=[{k:'work',label:'Work 総時間',pred:isWork,color:'--work',unit:'h/週',lb:true},{k:'cymbi',label:'Cymbi 総時間',pred:isCy,color:'--cymbi',unit:'h/週',lb:false},{k:'sleep',label:'睡眠',pred:isSleep,color:'--sleep',unit:'h/日',lb:false}];
   document.getElementById('kpis').innerHTML=kp.map(k=>{const tot=hours(from,to,k.pred);const dl=perDay(from,to,k.pred);const b=avg30(to,k.pred);const tg=targets[k.k];
-    const tgDay=tg?(k.unit==='h/日'?tg:tg/7):null; const perd=tot/nDays;
-    return `<div class="kpi"><div class="lbl"><span>${k.label}</span><button class="tgt" onclick="__setTarget('${k.k}','${k.label}','${k.unit}')">${tg?`目標 ${tg}${k.unit}`:'目標を設定'}</button></div>
+    const perDayT=targets[k.k+'Day']; const tgDay=tg?(perDayT?periodTgt(k.k,from,to)/nDays:tg):null; const perd=tot/nDays;
+    const barT=tg?(perDayT?dl.map(d=>dayTgt(k.k,d.date)):tgDay):null;
+    const tgTxt=perDayT?`${k.lb?'上限':'目標'} 平日${perDayT[0]}h・土日${perDayT[1]}h`:`目標 ${tg}${k.unit}`;
+    return `<div class="kpi"><div class="lbl"><span>${k.label}</span><button class="tgt" onclick="__setTarget('${k.k}','${k.label}','${k.unit}')">${tg?tgTxt:'目標を設定'}</button></div>
       <div class="val">${fmtH(tot)}<small>h</small> <small>／ ${perd.toFixed(1)}h/日</small></div>
       <div class="cmp"><span>対30日平均 ${delta(perd,b,k.lb)}</span>${tgDay?`<span>対目標 ${delta(perd,tgDay,k.lb)}</span>`:''}</div>
-      ${dailyBars(dl,k.color,b,tgDay,'h')}</div>`;}).join('');
+      ${dailyBars(dl,k.color,b,barT,'h')}</div>`;}).join('');
 
   // business weekly (tabbed, one business at a time)
   const bizPresent=[['Work全体','--work',isWork]].concat(BIZ.filter(([name])=>segs.some(s=>s.biz===name)).map(([name,color])=>[name,color,s=>s.biz===name]));
@@ -328,16 +339,17 @@ function render(){
   // business targets: monthly hours (Cymbi comes from the KPI tile, stored as h/week)
   const bizTgtMonthly=name=>{ if(name==='Cymbi')return null; return targets['biz:'+name]??null; };
   const bizTgtFor=(name,f,t)=>{ // sum of daily rates; monthly targets are split by that month's day count
-    if(name==='Cymbi')return targets.cymbi?targets.cymbi/7*(Math.round((t-f)/864e5)+1):null;
+    if(name==='Cymbi')return periodTgt('cymbi',f,t);
     const m=bizTgtMonthly(name); if(m==null)return null;
     let tot=0; for(let d=new Date(f);d<=t;d=addDays(d,1))tot+=m/new Date(d.getFullYear(),d.getMonth()+1,0).getDate(); return tot; };
   window.__setBizTarget=()=>setTarget();
-  const tgtCell=(h,tg)=>{ if(!(tg>0))return '<span class="flat">未設定</span>'; const p=Math.round(h/tg*100); const diff=h-tg; const c=diff<=0?'up':'down'; // business hours are caps: staying under is good
+  const bizFloor=name=>name==='Cymbi'; // Cymbi: reach the target. Other businesses: stay under it.
+  const tgtCell=(h,tg,floor)=>{ if(!(tg>0))return '<span class="flat">未設定</span>'; const p=Math.round(h/tg*100); const diff=h-tg; const c=(floor?diff>=0:diff<=0)?'up':'down';
     return `<span class="${c}">${p}%</span><br><small class="${c}">${diff>=0?'+':''}${diff.toFixed(1)}h</small>`; };
   document.getElementById('bizTable').innerHTML=`<table><tr><th>事業</th><th>時間</th><th>Work比</th><th>目標</th><th>対目標</th><th>対30日</th></tr>`+
     BIZ.map(([name,color])=>{const pr=s=>s.biz===name;const h=hours(from,to,pr);const tg=bizTgtFor(name,from,to);if(h<=0&&!(tg>0))return '';const b=avg30(to,pr)*nDays;
       const tgLabel=name==='Cymbi'?(targets.cymbi?`${targets.cymbi}h/週`:'設定'):(bizTgtMonthly(name)!=null?`${bizTgtMonthly(name)}h/月`:'設定');
-      return `<tr><td><i class="sw" style="background:var(${color})"></i>${name}</td><td>${h.toFixed(1)}h</td><td>${pct(h,workTot)??0}%</td><td><button class="tgt" onclick="__setBizTarget('${name}')">${tgLabel}</button>${tg>0?`<br><small class="flat">→${tg.toFixed(1)}h</small>`:''}</td><td>${tgtCell(h,tg)}</td><td>${delta(h,b,true)}</td></tr>`;}).join('')+`</table><div class="note">目標の「→」は選択期間に換算した目標時間。対目標 ＝ 実績 ÷ 期間換算の目標（月目標をその月の日数で日割りして合算。Cymbiは週目標を7で日割り）。目標ボタンからGitHubのtargets.jsonで変更（全端末共通）</div>`;
+      return `<tr><td><i class="sw" style="background:var(${color})"></i>${name}</td><td>${h.toFixed(1)}h</td><td>${pct(h,workTot)??0}%</td><td><button class="tgt" onclick="__setBizTarget('${name}')">${tgLabel}</button>${tg>0?`<br><small class="flat">→${tg.toFixed(1)}h</small>`:''}</td><td>${tgtCell(h,tg,bizFloor(name))}</td><td>${delta(h,b,!bizFloor(name))}</td></tr>`;}).join('')+`</table><div class="note">目標の「→」は選択期間に換算した目標時間。対目標 ＝ 実績 ÷ 期間換算の目標（月目標をその月の日数で日割りして合算。Cymbiは平日・土日の目標を日ごとに合算）。Cymbiは目標以上が緑、他の事業は目標以下が緑。目標ボタンからGitHubのtargets.jsonで変更（全端末共通）</div>`;
 
   // Cymbi breakdown
   const cyTot=hours(from,to,isCy); const subs={};
@@ -400,8 +412,9 @@ function render(){
   const sgn=v=>{const r=Math.abs(v)<0.05?0:v;return (r>=0?'+':'')+r.toFixed(1);};
   const M=[];
   const addM=(o)=>{o.j=judge(o.cur,o.tg,o.avg,o.dir);M.push(o);};
-  addM({key:'work',name:'Work',unit:'h/日',cur:wTot/nDays,tg:targets.work?targets.work/7:null,avg:avg30(to,isWork),dir:'cap'});
-  addM({key:'cymbi',name:'Cymbi',unit:'h/日',cur:cTot/nDays,tg:targets.cymbi?targets.cymbi/7:null,avg:avg30(to,isCy),dir:'cap'});
+  const tgPD=k=>{const v=periodTgt(k,from,to);return v!=null?v/nDays:null;};
+  addM({key:'work',name:'Work',unit:'h/日',cur:wTot/nDays,tg:tgPD('work'),avg:avg30(to,isWork),dir:'cap'});
+  addM({key:'cymbi',name:'Cymbi',unit:'h/日',cur:cTot/nDays,tg:tgPD('cymbi'),avg:avg30(to,isCy),dir:'floor'});
   addM({key:'sleep',name:'睡眠',unit:'h/日',cur:sTot/nDays,tg:targets.sleep??null,avg:avg30(to,isSleep),dir:'floor'});
   if(kr!=null)addM({key:'kaitaku',name:'🚀開拓比率',unit:'%',cur:kaitaku/cyTot*100,tg:kTgt,avg:null,dir:'floor'});
   for(const [name] of BIZ){ if(name==='Cymbi'||name==='その他')continue; const pr=s=>s.biz===name; const h=hours(from,to,pr); const tg=bizTgtFor(name,from,to);
@@ -438,7 +451,7 @@ function render(){
     if(j.lvl==='ok'){ if(j.useT)goodList.push(`${m.name} ${fmtU(m.cur,m.unit)}（${refTxt(m)}）`); continue; }
     const head=`<b>${m.name} ${fmtU(m.cur,m.unit)}</b>（${refTxt(m)}、${j.p>0?'+':''}${Math.round(j.p)}%）。`;
     if(m.key==='work')say(lv(j.lvl),head+`期間で<b>${sgn(j.diff*nDays)}h超過</b>。超過分は睡眠・家族から来ていないか生活バランスで確認。何を手放すか決めない限り、来週も同じだけ超える。`);
-    else if(m.key==='cymbi')say(lv(j.lvl),head+`期間で<b>${sgn(j.diff*nDays)}h超過</b>。Workの${pct(cTot,wTot)}%をCymbiが占め、うち共通が${kyotsu.toFixed(1)}h（${pct(kyotsu,cTot)}%）。超過の中身が共通なら、それが削る対象。`);
+    else if(m.key==='cymbi')say(lv(j.lvl),head+`期間で<b>${Math.abs(j.diff*nDays).toFixed(1)}h不足</b>。同じ期間のWorkは${wTot.toFixed(1)}hで、Cymbi以外に${(wTot-cTot).toFixed(1)}h流れている。他事業が上限を超えていないか事業別の表で確認し、Cymbiに戻す時間を決めること。`);
     else if(m.key==='sleep')say(lv(j.lvl),head+`1日${Math.abs(j.diff).toFixed(1)}h、期間で${Math.abs(j.diff*nDays).toFixed(1)}h削っている。削って作った時間がどこに行ったか、Workの連絡・MTGと娯楽を見て答えを出すこと。`);
     else if(m.key==='kaitaku')say(lv(j.lvl),head+`Cymbi ${cTot.toFixed(1)}hのうち開拓${kaitaku.toFixed(1)}h、共通${kyotsu.toFixed(1)}h（${pct(kyotsu,cTot)}%）。<b>共通に逃げている時間が開拓を食っている</b>。目標に届くには開拓をあと${Math.max(0,(kTgt/100*cTot-kaitaku)/(1-kTgt/100)).toFixed(1)}h積むか、共通を同じだけ減らす。`);
     else if(m.key==='biz')say(lv(j.lvl),head+`<b>${sgn(j.diff)}h</b>。想定以上の時間がこの事業に流れている。単価に見合っているか、関わる範囲を絞れないかを判断すること。`);
