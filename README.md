@@ -23,11 +23,14 @@ Toggl Track の記録を毎日自動取得し、GitHub Pages で閲覧するダ�
 ## 運用
 
 - 目標値は `targets.json` で管理（全端末共通）。GitHubで開いて鉛筆アイコン → 数字を書き換え → Commit changes。1〜2分で反映
-  - `work_hours_weekday` / `work_hours_weekend`：Workの上限（平日1日・土日1日あたりh）。超えたら赤
-  - `cymbi_hours_weekday` / `cymbi_hours_weekend`：Cymbiの目標（平日1日・土日1日あたりh）。下回ったら赤
+  - `work_hours_workday` / `work_hours_offday`：Workの上限（稼働日1日・休日1日あたりh）。超えたら赤
+  - `cymbi_hours_workday` / `cymbi_hours_offday`：Cymbiの目標（稼働日1日・休日1日あたりh）。下回ったら赤
   - `sleep_hours_per_day`：1日の睡眠目標（h）
   - `kaitaku_percent`：🚀開拓比率の目標（%）
-  - `business_hours_per_month`：Cymbi以外の事業ごとの月の上限（h）。超えたら赤
+  - `business_hours_per_month`：Cymbi以外の事業ごとの月の上限（h）。その月の稼働日数で割って稼働日に配分。超えたら赤
+  - `days_off`：個人的な休み（"YYYY-MM-DD"）。土日・祝日は自動で休日扱い
+  - `extra_workdays`：土日・祝日だけど稼働する日（"YYYY-MM-DD"）
+- 祝日は `holidays_jp.json`（2025〜2028年）。2029年以降は追加が必要
   - 未設定は `null`（30日平均で判定）
 - 取得開始日を変えるときは `update.yml` の `START_DATE`
 - 頻度を週1にするときは cron を `'0 0 * * 1'`（月曜 09:00 JST）

@@ -1,8 +1,8 @@
 {
-  "work_hours_weekday": 8,
-  "work_hours_weekend": 2,
-  "cymbi_hours_weekday": 6,
-  "cymbi_hours_weekend": 0,
+  "work_hours_workday": 8,
+  "work_hours_offday": 2,
+  "cymbi_hours_workday": 6,
+  "cymbi_hours_offday": 0,
   "sleep_hours_per_day": 6.5,
   "kaitaku_percent": 50,
   "business_hours_per_month": {
@@ -10,5 +10,11 @@
     "ボクもぐ": 10,
     "スタオバ": 10,
     "Myself": null
-  }
+  },
+  "days_off": [
+    "2026-11-04",
+    "2026-11-05",
+    "2026-11-06"
+  ],
+  "extra_workdays": []
 }
