@@ -5,7 +5,7 @@ Toggl Track の記録を毎日自動取得し、GitHub Pages で閲覧するダ�
 - `index.html` … ダッシュボード本体（`data.json` を読んで全てブラウザ内で集計）
 - `data.json` … Toggl から取得したローデータ（Actions が自動更新）
 - `fetch_toggl.py` … Toggl API v9 → `data.json`
-- `.github/workflows/update.yml` … 毎日 09:00 JST に実行（前夜の睡眠タイマーが止まった後）
+- `.github/workflows/update.yml` … 3時間ごとに実行（GitHubの混雑で多少遅れることがある）
 
 ## 初期設定（1回だけ）
 

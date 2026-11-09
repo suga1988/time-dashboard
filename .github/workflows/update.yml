@@ -2,7 +2,7 @@ name: Update Toggl data
 
 on:
   schedule:
-    - cron: '0 0 * * *'    # 毎日 09:00 JST（UTC 00:00）。週1にするなら '0 0 * * 1'（月曜）
+    - cron: '17 */3 * * *'  # 3時間ごと（JST 0:17, 3:17, 6:17 …）。毎時0分はGitHub側が混んで数時間遅れるため17分にずらしている
   workflow_dispatch:        # Actionsタブから手動実行もできる
 
 permissions:
