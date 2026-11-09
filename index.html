@@ -152,10 +152,14 @@ const delta=(cur,base,inv)=>{if(!(base>0))return '<span class="flat">基準な�
 // ---------- classify ----------
 const BIZ=[['Cymbi','--cymbi'],['LivCo','--livco'],['ボクもぐ','--bokumogu'],['スタオバ','--staoba'],['Myself','--myself'],['その他','--other']];
 const PROJ={'01_Work':['Work','--work'],'08_Sleep':['Sleep','--sleep'],'04_Family':['Family','--family'],'03_Life':['Life','--life'],'05_Health':['Health','--health'],'06_Learn':['Learn','--learn'],'07_Fun':['Fun','--fun'],'02_Well-being':['Well-being','--wb']};
-function biz(r){ if(r.p!=='01_Work')return null; const t=r.t||'';
-  if(t.startsWith('（CY）LivCo'))return 'LivCo'; if(t.startsWith('（CY）'))return 'Cymbi';
+// tag rules: any tag starting with （CY） or (CY) is Cymbi; （CY）LivCo is LivCo; the rest of a CY tag is the client name,
+// except 共通 / 開拓. New clients need no code change — add a （CY）<name> tag in Toggl and it appears automatically.
+const CY_RE=/^\s*[（(]\s*CY\s*[)）]\s*/i;
+const cyName=t=>CY_RE.test(t)?t.replace(CY_RE,'').replace('🚀','').trim():null;
+function biz(r){ if(r.p!=='01_Work')return null; const t=(r.t||'').split(',')[0].trim(); const cy=cyName(t);
+  if(cy!=null)return /^livco$/i.test(cy)?'LivCo':'Cymbi';
   if(t.startsWith('ボクもぐ'))return 'ボクもぐ'; if(t.startsWith('スタオバ'))return 'スタオバ'; if(t.startsWith('Myself'))return 'Myself'; return 'その他'; }
-function cySub(r){ if(biz(r)!=='Cymbi')return null; const s=r.t.replace('（CY）','').replace('🚀','').trim(); if(s==='共通'||s==='開拓')return s; return 'client:'+s; }
+function cySub(r){ if(biz(r)!=='Cymbi')return null; const s=cyName((r.t||'').split(',')[0].trim()); if(s==='共通'||s==='開拓')return s; return 'client:'+(s||'(名前なし)'); }
 
 // ---------- segments split at midnight ----------
 const genDay=DATA.generated?parse(DATA.generated.slice(0,10)+'T00:00:00'):null;
