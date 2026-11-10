@@ -161,11 +161,13 @@ function biz(r){ if(r.p!=='01_Work')return null; const t=(r.t||'').split(',')[0]
   if(t.startsWith('ボクもぐ'))return 'ボクもぐ'; if(t.startsWith('スタオバ'))return 'スタオバ'; if(t.startsWith('Myself'))return 'Myself'; return 'その他'; }
 function cySub(r){ if(biz(r)!=='Cymbi')return null; const s=cyName((r.t||'').split(',')[0].trim()); if(s==='共通'||s==='開拓')return s; return 'client:'+(s||'(名前なし)'); }
 
+// renamed Toggl descriptions: old name -> current name (history keeps the old name, so merge them here)
+const DESC_ALIAS={'商談・渉外活動':'渉外・商談・開拓活動'};
 // ---------- segments split at midnight ----------
 const genDay=DATA.generated?parse(DATA.generated.slice(0,10)+'T00:00:00'):null;
 const segs=[]; const recs=[];
 for(const raw of DATA.records){ const s=parse(raw.s),e=parse(raw.e); if(!(e>s))continue;
-  const r={d:raw.d,p:raw.p,t:raw.t,s,e}; r.biz=biz(r); r.sub=cySub(r); recs.push(r);
+  const r={d:DESC_ALIAS[raw.d]||raw.d,p:raw.p,t:raw.t,s,e}; r.biz=biz(r); r.sub=cySub(r); recs.push(r);
   let cur=s; while(cur<e){ const next=new Date(cur.getFullYear(),cur.getMonth(),cur.getDate()+1); const end=next<e?next:e;
     segs.push({day:ymd(cur),date:new Date(cur.getFullYear(),cur.getMonth(),cur.getDate()),h:(end-cur)/36e5,p:r.p,t:r.t,d:r.d,biz:r.biz,sub:r.sub,hs:cur.getHours()+cur.getMinutes()/60,he:(end-cur)/36e5+cur.getHours()+cur.getMinutes()/60}); cur=end; } }
 // the day the data was generated is still in progress: drop it so "today" never shows half a day
@@ -465,7 +467,7 @@ function render(){
     else if(m.key==='sleep')say(lv(j.lvl),head+`1日${Math.abs(j.diff).toFixed(1)}h、期間で${Math.abs(j.diff*nDays).toFixed(1)}h削っている。削って作った時間がどこに行ったか、Workの連絡・MTGと娯楽を見て答えを出すこと。`);
     else if(m.key==='kaitaku')say(lv(j.lvl),head+`Cymbi ${cTot.toFixed(1)}hのうち開拓${kaitaku.toFixed(1)}h、共通${kyotsu.toFixed(1)}h（${pct(kyotsu,cTot)}%）。<b>共通に逃げている時間が開拓を食っている</b>。目標に届くには開拓をあと${Math.max(0,(kTgt/100*cTot-kaitaku)/(1-kTgt/100)).toFixed(1)}h積むか、共通を同じだけ減らす。`);
     else if(m.key==='biz')say(lv(j.lvl),head+`<b>${sgn(j.diff)}h</b>。想定以上の時間がこの事業に流れている。単価に見合っているか、関わる範囲を絞れないかを判断すること。`);
-    else if(m.key==='comm')say(lv(j.lvl),head+`Workの${Math.round(m.cur)}%が連絡・MTGの受け身の時間。成果物・提案・商談に充てたのは${((descs['提案・資料・成果物 作成']||0)+(descs['商談・渉外活動']||0)).toFixed(1)}hだけ。`);
+    else if(m.key==='comm')say(lv(j.lvl),head+`Workの${Math.round(m.cur)}%が連絡・MTGの受け身の時間。成果物・提案・渉外／商談／開拓に充てたのは${((descs['提案・資料・成果物 作成']||0)+(descs['渉外・商談・開拓活動']||0)).toFixed(1)}hだけ。`);
     else if(m.key==='life')say(lv(j.lvl),head+`Workが増えたときに最初に削られているのはここ。`);
   }
   if(maxStreak>=2)say(maxStreak>=3?'crit':'warn',`<b>睡眠${sRef.toFixed(1)}h未満が${maxStreak}日連続</b>（基準：${sleepRef.src}）。体脂肪率も判断力もここから崩れる。`);
