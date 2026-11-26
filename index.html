@@ -440,7 +440,7 @@ function render(){
   for(const m of M){ const j=m.j; if(j.lvl==='na'){push('ok',m.name,'基準なし');continue;}
     const word=!j.useT?(j.diff>=0?'増':'減'):m.dir==='cap'?(j.diff>0?'超過':'以内'):(j.diff<0?'不足':'達成');
     const dTxt=m.unit==='%'?`${j.diff>=0?'+':''}${Math.round(j.diff)}pt`:`${sgn(j.diff)}${m.unit}`+(m.unit==='h/日'?`（期間 ${sgn(j.diff*nDays)}h）`:'');
-    push(j.lvl,`${m.name} ${fmtU(m.cur,m.unit)}（${j.src} ${fmtU(j.ref,m.unit)}）`,`${dTxt} ${word}・${j.p>0?'+':''}${Math.round(j.p)}%`); }
+    push(j.lvl,`${m.name} ${fmtU(m.cur,m.unit)}（${j.src} ${fmtU(j.ref,m.unit)}）`,m.unit==='%'?`${dTxt} ${word}`:`${dTxt} ${word}・${j.p>0?'+':''}${Math.round(j.p)}%`); }
   // sleep streak uses the same reference as the sleep metric
   const sleepRef=M.find(m=>m.key==='sleep').j; const sRef=sleepRef.ref;
   const sleepDays=perDay(from,to,isSleep);let streak=0,maxStreak=0;
@@ -461,7 +461,8 @@ function render(){
   const goodList=[];
   for(const m of M){ const j=m.j; if(j.lvl==='na')continue;
     if(j.lvl==='ok'){ if(j.useT)goodList.push(`${m.name} ${fmtU(m.cur,m.unit)}（${refTxt(m)}）`); continue; }
-    const head=`<b>${m.name} ${fmtU(m.cur,m.unit)}</b>（${refTxt(m)}、${j.p>0?'+':''}${Math.round(j.p)}%）。`;
+    const gapTxt=m.unit==='%'?`${j.diff>=0?'+':''}${Math.round(j.diff)}pt`:`${j.p>0?'+':''}${Math.round(j.p)}%`;
+    const head=`<b>${m.name} ${fmtU(m.cur,m.unit)}</b>（${refTxt(m)}、${gapTxt}）。`;
     if(m.key==='work')say(lv(j.lvl),head+`期間で<b>${sgn(j.diff*nDays)}h超過</b>。超過分は睡眠・家族から来ていないか生活バランスで確認。何を手放すか決めない限り、来週も同じだけ超える。`);
     else if(m.key==='cymbi')say(lv(j.lvl),head+`期間で<b>${Math.abs(j.diff*nDays).toFixed(1)}h不足</b>。同じ期間のWorkは${wTot.toFixed(1)}hで、Cymbi以外に${(wTot-cTot).toFixed(1)}h流れている。他事業が上限を超えていないか事業別の表で確認し、Cymbiに戻す時間を決めること。`);
     else if(m.key==='sleep')say(lv(j.lvl),head+`1日${Math.abs(j.diff).toFixed(1)}h、期間で${Math.abs(j.diff*nDays).toFixed(1)}h削っている。削って作った時間がどこに行ったか、Workの連絡・MTGと娯楽を見て答えを出すこと。`);
